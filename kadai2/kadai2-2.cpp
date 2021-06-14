@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define I_FILE "flower.png"
+#define I_FILE "binary.bin"
 #define O_FILE "k2-2.txt"
 
 using namespace std;
@@ -35,8 +35,8 @@ int main() {
 	fseek(i_fp, 0L, SEEK_SET);
 	
 	//データ読み込み
-	fread(buffer, sizeof(*buffer), length/sizeof(*buffer), i_fp);
-	cout << "File read." << endl;
+	int n = fread(buffer, 1, length, i_fp);
+	cout << n << " data read." << endl;
 	
 	//ファイルクローズ
         fclose(i_fp);
@@ -44,18 +44,20 @@ int main() {
 
 	//読み込んだファイルを4バイト毎にファイル出力
 	FILE *o_fp = fopen(O_FILE, "w");
+
+	//書き込みデータ数の指定
+	int m = length / (int)sizeof(*buffer);
+	if (length % (int)sizeof(*buffer) != 0) m +=1;
+
 	int i;
-
-	cout << "filename : " << O_FILE << endl;
-
-	for (i=0; i<length/(int)sizeof(*buffer); i++) {
+	for (i=0; i<m; i++) {
 		if (i % 2 == 0) {
 			//iが偶数のとき書き込む
 			fwrite(buffer+i, sizeof(*buffer), 1, o_fp);
 		}
 	}
 
-	cout << "File write." << endl;
+	cout << O_FILE << " write." << endl;
 
 	fclose(o_fp);
 
@@ -68,8 +70,7 @@ $ ./out
 filename : flower.png
 filesize : 4766 bytes
 File read.
-filename : k2-2.txt
-File write.
+k2-2.txt write.
  
 
 元のバイナリファイル

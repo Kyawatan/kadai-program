@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define FILENAME "bin3.bin"
+#define FILENAME "flower.png"
 
 using namespace std;
 
@@ -33,14 +33,9 @@ int main() {
 	//ファイルの先頭に移動
 	fseek(fp, 0L, SEEK_SET);
 
-	//ファイルサイズがが4バイト未満の場合の読み込みデータ数の処理
-	int n;
-	if (length < 4) n = 1;
-	else  n = length/sizeof(*buffer);
-
-	//データ読み込み
-	fread(buffer, sizeof(*buffer), n, fp);
-	cout << "File read." << endl;
+	//データ読み込み(1バイトずつファイルサイズ分読み込み)
+	int n = fread(buffer, 1, length, fp);
+	cout << n << " data read." << endl;
 
 	//読み込んだデータを16進数で出力(先頭から40バイトだけ)
 	int i;
@@ -61,7 +56,7 @@ $ g++ -Wall -o out kadai2-1.cpp
 $ ./out
 filename : flower.png
 filesize : 4766 bytes
-File read.
+4766 read.
 474e5089 0a1a0a0d 0d000000 52444849 64000000 64000000 00000608 95e27000 12000054 41444965 
 
 
@@ -74,12 +69,17 @@ $ od -tx -N 40 flower.png
 0000050
 
 
-追記：ファイルサイズが3バイトの場合
+追記：ファイルサイズが3バイト、6バイトの場合
 
 $ ./out
 filename : bin3.bin
 filesize : 3 bytes
-File read.
-00221100 00000000 00000000 00000000 00000000 00000000 0000db31 00000000 00000000 00000000 
+3 data read.
+
+$ ./out
+filename : bin3.bin
+filesize : 6 bytes
+6 data read.
+
 
 */
