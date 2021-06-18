@@ -57,6 +57,7 @@ typedef struct RGBQUAD {
 */
 class BitMapProcessor {
     FILE *bmp;                  //画像のファイルポインタ
+    uint8_t* buffer;
     uint8_t headerBuffer[DEFAULT_HEADER_SIZE];    //ヘッダの40バイト分
     BITMAPFILEHEADER *fHeader;   //ファイルヘッダ
     BITMAPINFOHEADER *iHeader;   //情報ヘッダ
@@ -66,6 +67,7 @@ class BitMapProcessor {
 public:
     BitMapProcessor() {
         bmp = NULL;
+        buffer = NULL;
         fHeader = (BITMAPFILEHEADER*)headerBuffer;
         iHeader = (BITMAPINFOHEADER*)(headerBuffer + FILE_HEADER_SIZE);
         width = NULL;
@@ -85,11 +87,34 @@ private:
 };
 
 void BitMapProcessor::loadData(string filename) {
+    int length;
+    
     //ファイルオープン
     bmp = fopen(filename.c_str(), "rb");
     if (bmp == NULL) {
         cout << "ファイルオープンに失敗しました。" << endl;
-        EXIT_FAILURE;
+        exit(EXIT_FAILURE);
+    }
+
+    //ファイルサイズの取得
+    fseek(bmp, 0L, SEEK_END);
+    length = ftell(bmp);
+
+    //メモリ割り当て
+    buffer = (uint8_t*)malloc(length);
+    if (buffer == NULL) {
+        cout << "メモリ割り当てに失敗しました。" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    //ファイルの先頭に移動
+    fseek(bmp, 0L, SEEK_SET);
+
+    //データ読み込み
+    int n = fread(buffer, sizeof(uint8_t), length, bmp);
+    if (n != length) {
+        cout << "データ読み込みに失敗しました。" << endl;
+        exit(EXIT_FAILURE);
     }
 
     readFileHeader();
@@ -101,11 +126,13 @@ void BitMapProcessor::loadData(string filename) {
 * ファイルヘッダを読む
 */
 void BitMapProcessor::readFileHeader() {
-    fread(headerBuffer, FILE_HEADER_SIZE, 1, bmp);
+    for (int i = 0; i < FILE_HEADER_SIZE; i++) {
+        headerBuffer[i] = *(buffer + i);
+    }
 
     if (fHeader->dgType != FILE_TYPE) {
         cout << "BMPファイルではありません。" << endl;
-        EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -113,17 +140,19 @@ void BitMapProcessor::readFileHeader() {
 * 情報ヘッダを読む
 */
 void BitMapProcessor::readInfoHeader() {
-    fread(headerBuffer + FILE_HEADER_SIZE, INFO_HEADER_SIZE, 1, bmp);
+    for (int i = FILE_HEADER_SIZE; i < DEFAULT_HEADER_SIZE; i++) {
+        headerBuffer[i] = *(buffer + i);
+    }
 
     if (iHeader->biSize != INFO_HEADER_SIZE) {
         cout << "Windowsフォーマットではありません。" << endl;
-        EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     //とりあえず24ビットマップのみを読み込む
     if (iHeader->biBitCount != 24) {
         cout << "24ビットマップではありません。" << endl;
-        EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     width = iHeader->biWidth;   //画像の幅
@@ -134,7 +163,11 @@ void BitMapProcessor::readInfoHeader() {
 * 画像データを読む
 */
 void BitMapProcessor::readBmpData() {
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
 
+        }
+    }
 }
 
 int main()
