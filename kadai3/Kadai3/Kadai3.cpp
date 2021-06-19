@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstring>
+#include <vector>
 
 #define FILE_TYPE 0x4D42    //BM
 #define FILE_HEADER_SIZE 14 //ヘッダサイズ
@@ -56,29 +57,24 @@ typedef struct RGBQUAD {
 * ビットマップ処理クラス
 */
 class BitMapProcessor {
-    FILE *bmp;                  //画像のファイルポインタ
     uint8_t* buffer;
     uint8_t headerBuffer[DEFAULT_HEADER_SIZE];    //ヘッダの40バイト分
     BITMAPFILEHEADER *fHeader;   //ファイルヘッダ
     BITMAPINFOHEADER *iHeader;   //情報ヘッダ
-    int width;
-    int height;
 
 public:
     BitMapProcessor() {
-        bmp = NULL;
         buffer = NULL;
         fHeader = (BITMAPFILEHEADER*)headerBuffer;
         iHeader = (BITMAPINFOHEADER*)(headerBuffer + FILE_HEADER_SIZE);
-        width = NULL;
-        height = NULL;
     };
 
     ~BitMapProcessor() {
-        fclose(bmp);
+ 
     }
 
-    void loadData(string filename);
+    void readData(string filename);
+    void writeData(string filename);
 
 private:
     void readFileHeader();
@@ -86,19 +82,19 @@ private:
     void readBmpData();
 };
 
-void BitMapProcessor::loadData(string filename) {
+void BitMapProcessor::readData(string filename) {
     int length;
     
     //ファイルオープン
-    bmp = fopen(filename.c_str(), "rb");
-    if (bmp == NULL) {
+    FILE *i_fp = fopen(filename.c_str(), "rb");
+    if (i_fp == NULL) {
         cout << "ファイルオープンに失敗しました。" << endl;
         exit(EXIT_FAILURE);
     }
 
     //ファイルサイズの取得
-    fseek(bmp, 0L, SEEK_END);
-    length = ftell(bmp);
+    fseek(i_fp, 0L, SEEK_END);
+    length = ftell(i_fp);
 
     //メモリ割り当て
     buffer = (uint8_t*)malloc(length);
@@ -108,14 +104,17 @@ void BitMapProcessor::loadData(string filename) {
     }
 
     //ファイルの先頭に移動
-    fseek(bmp, 0L, SEEK_SET);
+    fseek(i_fp, 0L, SEEK_SET);
 
     //データ読み込み
-    int n = fread(buffer, sizeof(uint8_t), length, bmp);
+    size_t n = fread(buffer, sizeof(uint8_t), length, i_fp);
     if (n != length) {
         cout << "データ読み込みに失敗しました。" << endl;
         exit(EXIT_FAILURE);
     }
+
+    //ファイルクローズ
+    fclose(i_fp);
 
     readFileHeader();
     readInfoHeader();
@@ -134,6 +133,17 @@ void BitMapProcessor::readFileHeader() {
         cout << "BMPファイルではありません。" << endl;
         exit(EXIT_FAILURE);
     }
+
+    cout << "dgType      : " << fHeader->dgType << endl;
+    cout << "              " << sizeof(fHeader->dgType) << " byte" << endl;
+    cout << "bfSize      : " << fHeader->bfSize << endl;
+    cout << "              " << sizeof(fHeader->bfSize) << " byte" << endl;
+    cout << "bfReserved1 : " << fHeader->bfReserved1 << endl;
+    cout << "              " << sizeof(fHeader->bfReserved1) << " byte" << endl;
+    cout << "bfRserved2  : " << fHeader->bfReserved2 << endl;
+    cout << "              " << sizeof(fHeader->bfReserved2) << " byte" << endl;
+    cout << "bfOffBits   : " << fHeader->bfOffBits << endl;
+    cout << "              " << sizeof(fHeader->bfOffBits) << " byte" << endl;
 }
 
 /*
@@ -149,33 +159,65 @@ void BitMapProcessor::readInfoHeader() {
         exit(EXIT_FAILURE);
     }
 
-    //とりあえず24ビットマップのみを読み込む
-    if (iHeader->biBitCount != 24) {
-        cout << "24ビットマップではありません。" << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    width = iHeader->biWidth;   //画像の幅
-    height = iHeader->biHeight; //画像の高さ
+    cout << "biSize          : " << iHeader->biSize << endl;
+    cout << "                  " << sizeof(iHeader->biSize) << " byte" << endl;
+    cout << "biWidth         : " << iHeader->biWidth << endl;
+    cout << "                  " << sizeof(iHeader->biWidth) << " byte" << endl;
+    cout << "biHeight        : " << iHeader->biHeight << endl;
+    cout << "                  " << sizeof(iHeader->biHeight) << " byte" << endl;
+    cout << "biPlanes        : " << iHeader->biPlanes << endl;
+    cout << "                  " << sizeof(iHeader->biPlanes) << " byte" << endl;
+    cout << "biBitCount      : " << iHeader->biBitCount << endl;
+    cout << "                  " << sizeof(iHeader->biBitCount) << " byte" << endl;
+    cout << "biCompression   : " << iHeader->biCompression << endl;
+    cout << "                  " << sizeof(iHeader->biCompression) << " byte" << endl;
+    cout << "biSizeImage     : " << iHeader->biSizeImage << endl;
+    cout << "                  " << sizeof(iHeader->biSizeImage) << " byte" << endl;
+    cout << "biXPelsPerMeter : " << iHeader->biXPelsPerMeter << endl;
+    cout << "                  " << sizeof(iHeader->biXPelsPerMeter) << " byte" << endl;
+    cout << "biYPelsPerMeter : " << iHeader->biYPelsPerMeter << endl;
+    cout << "                  " << sizeof(iHeader->biYPelsPerMeter) << " byte" << endl;
+    cout << "biClrUsed       : " << iHeader->biClrUsed << endl;
+    cout << "                  " << sizeof(iHeader->biClrUsed) << " byte" << endl;
+    cout << "biClrImportant  : " << iHeader->biClrImportant << endl;
+    cout << "                  " << sizeof(iHeader->biClrImportant) << " byte" << endl;
 }
 
 /*
 * 画像データを読む
 */
 void BitMapProcessor::readBmpData() {
-    for (int i = 0; i < width; i++) {
-        for (int j = 0; j < height; j++) {
 
-        }
-    }
+}
+
+void BitMapProcessor::writeData(string filename) {
+    int width = iHeader->biWidth;       //画像の幅
+    int height = iHeader->biHeight;     //画像の高さ
+    int size = iHeader->biSizeImage;    //画像サイズ
+    int padding = width % 4;            //パディング
+
+    //ファイルオープン
+    FILE* o_fp = fopen(filename.c_str(), "wb");
+
+    //ヘッダ書き込み
+    fwrite(buffer, sizeof(*buffer), DEFAULT_HEADER_SIZE, o_fp);
+
+    //画像データ書き込み
+    int n = DEFAULT_HEADER_SIZE;
+    fwrite(buffer + n, sizeof(*buffer), size, o_fp);
+
+    //ファイルクローズ
+    fclose(o_fp);
 }
 
 int main()
 {
     BitMapProcessor bmp;
 
-    //ファイルのロード
-    bmp.loadData("C:/Users/nicov/source/repos/Kadai3/flower.bmp");
+    //ファイルの読み込み
+    bmp.readData("image/rgb24.bmp");
+    //ファイルの書き出し
+    bmp.writeData("output/outputImage.bmp");
 
     return 0;
 }
