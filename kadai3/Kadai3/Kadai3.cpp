@@ -58,23 +58,26 @@ typedef struct RGBQUAD {
 */
 class BitMapProcessor {
     uint8_t* buffer;
-    uint8_t headerBuffer[DEFAULT_HEADER_SIZE];    //ヘッダの40バイト分
-    BITMAPFILEHEADER *fHeader;   //ファイルヘッダ
-    BITMAPINFOHEADER *iHeader;   //情報ヘッダ
+    uint8_t headerBuffer[DEFAULT_HEADER_SIZE];
+    int bmpData;                //画像データ
+    BITMAPFILEHEADER *fHeader;  //ファイルヘッダ
+    BITMAPINFOHEADER *iHeader;  //情報ヘッダ
 
 public:
     BitMapProcessor() {
         buffer = NULL;
+        bmpData = 0;
         fHeader = (BITMAPFILEHEADER*)headerBuffer;
         iHeader = (BITMAPINFOHEADER*)(headerBuffer + FILE_HEADER_SIZE);
     };
 
     ~BitMapProcessor() {
- 
+        free(buffer);
     }
 
     void readData(string filename);
     void writeData(string filename);
+    void resizeData(string filename, double d);
 
 private:
     void readFileHeader();
@@ -82,6 +85,9 @@ private:
     void readBmpData();
 };
 
+/*
+* 画像を読む
+*/
 void BitMapProcessor::readData(string filename) {
     int length;
     
@@ -184,30 +190,87 @@ void BitMapProcessor::readInfoHeader() {
 }
 
 /*
-* 画像データを読む
+* ビットマップデータを読む
 */
 void BitMapProcessor::readBmpData() {
-
+    switch (iHeader->biBitCount) {
+    case 1:
+        bmpData = 2;
+        break;
+    case 4:
+        bmpData = 16;
+        break;
+    case 8:
+        bmpData = 256;
+        break;
+    }
 }
 
+/*
+* 画像を書く
+*/
 void BitMapProcessor::writeData(string filename) {
     int width = iHeader->biWidth;       //画像の幅
     int height = iHeader->biHeight;     //画像の高さ
+    int offset = fHeader->bfOffBits;    //オフセット
     int size = iHeader->biSizeImage;    //画像サイズ
-    int padding = width % 4;            //パディング
 
     //ファイルオープン
     FILE* o_fp = fopen(filename.c_str(), "wb");
 
-    //ヘッダ書き込み
-    fwrite(buffer, sizeof(*buffer), DEFAULT_HEADER_SIZE, o_fp);
+    //オフセット書き込み
+    fwrite(buffer, sizeof(*buffer), offset, o_fp);
 
-    //画像データ書き込み
-    int n = DEFAULT_HEADER_SIZE;
-    fwrite(buffer + n, sizeof(*buffer), size, o_fp);
+    //画像データの書き込み
+    fwrite(buffer + offset, sizeof(*buffer), size, o_fp);
 
     //ファイルクローズ
     fclose(o_fp);
+}
+
+void BitMapProcessor::resizeData(string filename, double d) {
+    int width = iHeader->biWidth;       //画像の幅
+    int height = iHeader->biHeight;     //画像の高さ
+    int offset = fHeader->bfOffBits;    //オフセット
+    int size = iHeader->biSizeImage;    //画像サイズ
+    int colorByte = iHeader->biBitCount / 4; //1ピクセルあたりのカラーバイト数
+    int padding = width % 4;
+    int new_padding = width * 2 % 4;
+
+    //ファイルオープン
+    FILE* o_fp = fopen(filename.c_str(), "wb");
+
+    //オフセット書き込み
+    fwrite(buffer, sizeof(*buffer), offset, o_fp);
+
+    //画像データの書き込み
+    int i = offset;
+    int n = 1;
+    while (i < size) {
+        if (i / colorByte == width) {
+            for (int j = 0; j < new_padding; j++) {
+                fwrite(buffer + i, sizeof(*buffer), 1, o_fp);
+            }
+            i += padding;
+        }
+        if (n == 1) {
+            fwrite(buffer + i, sizeof(*buffer), colorByte, o_fp);
+        }
+        i += colorByte;
+        n *= (-1);
+    }
+
+    width = iHeader->biWidth *= d;
+    //height = iHeader->biHeight *= d;
+    size  = (((iHeader->biBitCount * width) + padding) * height / 8);
+
+    //ファイルクローズ
+    fclose(o_fp);
+
+    cout << "RESIZE" << endl;
+    cout << "width  : " << width << endl;
+    cout << "height : " << height << endl;
+    cout << "size   : " << size << endl;
 }
 
 int main()
@@ -216,8 +279,10 @@ int main()
 
     //ファイルの読み込み
     bmp.readData("image/rgb24.bmp");
+    //0.5倍にリサイズ
+    //bmp.resizeData("output/resizeImage.bmp", 0.5);
     //ファイルの書き出し
-    bmp.writeData("output/outputImage.bmp");
+    //bmp.writeData("output/outputImage.bmp");
 
     return 0;
 }
