@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iomanip>
+
 #define FILE_TYPE 0x4D42    //BM
 #define FILE_HEADER_SIZE 14 //ヘッダサイズ
 #define INFO_HEADER_SIZE 40 //Windows情報ヘッダサイズ
@@ -50,12 +52,14 @@ typedef struct RGB_24 {
 * ビットマップ処理クラス
 */
 class BitMapProcessor {
+private:
     uint8_t* buffer;
     uint8_t headerBuffer[DEFAULT_HEADER_SIZE];  //ヘッダ部格納用
-    uint8_t* imageBuffer;
+    RGB_24** imageBuffer;  //RGB格納用
     BITMAPFILEHEADER* fHeader;
     BITMAPINFOHEADER* iHeader;
     RGB_24* rgb24;
+
 public:
     BitMapProcessor();
     ~BitMapProcessor();
@@ -69,4 +73,6 @@ private:
     void readInfoHeader();
     void readBmpData();
     void writePadding(uint8_t*, int, int);
+    void printHeader();
+    void updateHeader();
 };

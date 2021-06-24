@@ -1,10 +1,10 @@
-﻿#include <cstdio>
+﻿#pragma warning(disable : 4996) //fopen使用エラー回避
+
+#include <cstdio>
 #include <iostream>
 #include <iomanip>
 #include <cstring>
 #include "BitMapProcessor.h"
-
-#pragma warning(disable : 4996) //fopen使用エラー回避
 
 #define FILE_TYPE 0x4D42    //BM
 #define FILE_HEADER_SIZE 14 //ヘッダサイズ
@@ -17,9 +17,11 @@ using namespace std;
 * コンストラクタ
 */
 BitMapProcessor::BitMapProcessor() {
+
+    //memset(headerBuffer, sizeof(uint8_t) * DEFAULT_HEADER_SIZE);
     buffer = NULL;
     imageBuffer = NULL;
-    fHeader = (BITMAPFILEHEADER*)headerBuffer;
+    fHeader = (BITMAPFILEHEADER*)headerBuffer ;
     iHeader = (BITMAPINFOHEADER*)(headerBuffer + FILE_HEADER_SIZE);
     rgb24 = NULL;
 };
@@ -29,6 +31,9 @@ BitMapProcessor::BitMapProcessor() {
 */
 BitMapProcessor::~BitMapProcessor() {
     free(buffer);
+    for (int i = 0; i < iHeader->biHeight; i++) {
+        delete imageBuffer[i];
+    }
     delete[]imageBuffer;
 }
 
@@ -72,6 +77,8 @@ void BitMapProcessor::readData(string filename) {
     readFileHeader();
     readInfoHeader();
     readBmpData();
+
+    printHeader();
 }
 
 /*
@@ -86,17 +93,6 @@ void BitMapProcessor::readFileHeader() {
         cout << "BMPファイルではありません。" << endl;
         exit(EXIT_FAILURE);
     }
-
-    cout << "dgType      : " << fHeader->dgType << endl;
-    cout << "              " << sizeof(fHeader->dgType) << " byte" << endl;
-    cout << "bfSize      : " << fHeader->bfSize << endl;
-    cout << "              " << sizeof(fHeader->bfSize) << " byte" << endl;
-    cout << "bfReserved1 : " << fHeader->bfReserved1 << endl;
-    cout << "              " << sizeof(fHeader->bfReserved1) << " byte" << endl;
-    cout << "bfRserved2  : " << fHeader->bfReserved2 << endl;
-    cout << "              " << sizeof(fHeader->bfReserved2) << " byte" << endl;
-    cout << "bfOffBits   : " << fHeader->bfOffBits << endl;
-    cout << "              " << sizeof(fHeader->bfOffBits) << " byte" << endl;
 }
 
 /*
@@ -111,29 +107,6 @@ void BitMapProcessor::readInfoHeader() {
         cout << "Windowsフォーマットではありません。" << endl;
         exit(EXIT_FAILURE);
     }
-
-    cout << "biSize          : " << iHeader->biSize << endl;
-    cout << "                  " << sizeof(iHeader->biSize) << " byte" << endl;
-    cout << "biWidth         : " << iHeader->biWidth << endl;
-    cout << "                  " << sizeof(iHeader->biWidth) << " byte" << endl;
-    cout << "biHeight        : " << iHeader->biHeight << endl;
-    cout << "                  " << sizeof(iHeader->biHeight) << " byte" << endl;
-    cout << "biPlanes        : " << iHeader->biPlanes << endl;
-    cout << "                  " << sizeof(iHeader->biPlanes) << " byte" << endl;
-    cout << "biBitCount      : " << iHeader->biBitCount << endl;
-    cout << "                  " << sizeof(iHeader->biBitCount) << " byte" << endl;
-    cout << "biCompression   : " << iHeader->biCompression << endl;
-    cout << "                  " << sizeof(iHeader->biCompression) << " byte" << endl;
-    cout << "biSizeImage     : " << iHeader->biSizeImage << endl;
-    cout << "                  " << sizeof(iHeader->biSizeImage) << " byte" << endl;
-    cout << "biXPelsPerMeter : " << iHeader->biXPelsPerMeter << endl;
-    cout << "                  " << sizeof(iHeader->biXPelsPerMeter) << " byte" << endl;
-    cout << "biYPelsPerMeter : " << iHeader->biYPelsPerMeter << endl;
-    cout << "                  " << sizeof(iHeader->biYPelsPerMeter) << " byte" << endl;
-    cout << "biClrUsed       : " << iHeader->biClrUsed << endl;
-    cout << "                  " << sizeof(iHeader->biClrUsed) << " byte" << endl;
-    cout << "biClrImportant  : " << iHeader->biClrImportant << endl;
-    cout << "                  " << sizeof(iHeader->biClrImportant) << " byte" << endl;
 }
 
 /*
@@ -143,20 +116,21 @@ void BitMapProcessor::readBmpData() {
     int height = iHeader->biHeight;
     int width = iHeader->biWidth;
     int padding = width % 4;
-    int lineByte = width * iHeader->biBitCount / 8; //パディングを除いた1列あたりのバイト数
-    int imageByte = lineByte * height; //パディングを除いた画像のバイト数
 
-    //RGBを格納する配列の動的確保
-    imageBuffer = new uint8_t[imageByte];
-    rgb24 = (RGB_24*)imageBuffer;
-
-    //画像幅1列ずつデータを読む
+    //RGBを格納する二次元配列の動的確保
+    imageBuffer = new RGB_24*[height];
+    for (int i = 0; i < height; i++) {
+        imageBuffer[i] = new RGB_24[width];
+    }
+    
+    //1ピクセルずつデータを読む
+    int n = DEFAULT_HEADER_SIZE;
     for (int y = 0; y < height; y++) {
-        memcpy(
-            imageBuffer + (long long)lineByte * y,
-            buffer + DEFAULT_HEADER_SIZE + (long long)((long long)lineByte + padding) * y,
-            lineByte
-        );
+        for (int x = 0; x < width; x++) {
+            memcpy(&imageBuffer[y][x], buffer + n, sizeof(RGB_24));
+            n += sizeof(RGB_24);
+        }
+        n += padding; //パディングを読み飛ばす
     }
 }
 
@@ -187,16 +161,17 @@ void BitMapProcessor::writeData(string filename) {
     //画像幅1列分のサイズの配列を動的確保
     uint8_t* line = new uint8_t[p_lineByte];
 
-    //あらかじめパディングしておく
+    //配列の末尾をあらかじめパディングしておく
     writePadding(line, lineByte, padding);
 
     //画像幅1列ずつデータ書き込み
     for (int y = 0; y < height; y++) {
-        memcpy(
-            line,
-            imageBuffer + ((long long)lineByte) * y,
-            lineByte
-        );
+        for (int x = 0; x < width; x++) {
+            int n = x * sizeof(RGB_24);
+            line[n] = imageBuffer[y][x].rgbBlue;
+            line[n + 1] = imageBuffer[y][x].rgbGreen;
+            line[n + 2] = imageBuffer[y][x].rgbRed;
+        }
         fwrite(line, sizeof(uint8_t), p_lineByte, o_fp);
     }
 
@@ -218,19 +193,76 @@ void BitMapProcessor::writePadding(uint8_t* array, int n, int p) {
 }
 
 /*
+* ヘッダを表示する
+*/
+void BitMapProcessor::printHeader() {
+    cout << "dgType      : " << fHeader->dgType << endl;
+    cout << "              " << sizeof(fHeader->dgType) << " byte" << endl;
+    cout << "bfSize      : " << fHeader->bfSize << endl;
+    cout << "              " << sizeof(fHeader->bfSize) << " byte" << endl;
+    cout << "bfReserved1 : " << fHeader->bfReserved1 << endl;
+    cout << "              " << sizeof(fHeader->bfReserved1) << " byte" << endl;
+    cout << "bfRserved2  : " << fHeader->bfReserved2 << endl;
+    cout << "              " << sizeof(fHeader->bfReserved2) << " byte" << endl;
+    cout << "bfOffBits   : " << fHeader->bfOffBits << endl;
+    cout << "              " << sizeof(fHeader->bfOffBits) << " byte" << endl;
+
+    cout << "biSize          : " << iHeader->biSize << endl;
+    cout << "                  " << sizeof(iHeader->biSize) << " byte" << endl;
+    cout << "biWidth         : " << iHeader->biWidth << endl;
+    cout << "                  " << sizeof(iHeader->biWidth) << " byte" << endl;
+    cout << "biHeight        : " << iHeader->biHeight << endl;
+    cout << "                  " << sizeof(iHeader->biHeight) << " byte" << endl;
+    cout << "biPlanes        : " << iHeader->biPlanes << endl;
+    cout << "                  " << sizeof(iHeader->biPlanes) << " byte" << endl;
+    cout << "biBitCount      : " << iHeader->biBitCount << endl;
+    cout << "                  " << sizeof(iHeader->biBitCount) << " byte" << endl;
+    cout << "biCompression   : " << iHeader->biCompression << endl;
+    cout << "                  " << sizeof(iHeader->biCompression) << " byte" << endl;
+    cout << "biSizeImage     : " << iHeader->biSizeImage << endl;
+    cout << "                  " << sizeof(iHeader->biSizeImage) << " byte" << endl;
+    cout << "biXPelsPerMeter : " << iHeader->biXPelsPerMeter << endl;
+    cout << "                  " << sizeof(iHeader->biXPelsPerMeter) << " byte" << endl;
+    cout << "biYPelsPerMeter : " << iHeader->biYPelsPerMeter << endl;
+    cout << "                  " << sizeof(iHeader->biYPelsPerMeter) << " byte" << endl;
+    cout << "biClrUsed       : " << iHeader->biClrUsed << endl;
+    cout << "                  " << sizeof(iHeader->biClrUsed) << " byte" << endl;
+    cout << "biClrImportant  : " << iHeader->biClrImportant << endl;
+    cout << "                  " << sizeof(iHeader->biClrImportant) << " byte" << endl;
+}
+
+/*
+* ヘッダを更新する
+*/
+void BitMapProcessor::updateHeader() {
+    //biXPelsPerMeter = ;
+    //biYPelsPerMeter = ;
+    iHeader->biPlanes = 1;
+    iHeader->biSizeImage = iHeader->biWidth * iHeader->biBitCount / 8 * iHeader->biHeight;
+    iHeader->biSize = INFO_HEADER_SIZE;
+
+    fHeader->dgType = FILE_TYPE;
+    fHeader->bfReserved1 = 0;
+    fHeader->bfReserved2 = 0;
+    fHeader->bfOffBits = DEFAULT_HEADER_SIZE;
+    fHeader->bfSize = iHeader->biSize + fHeader->bfOffBits;
+
+    cout << "ヘッダ情報を更新しました。" << endl;
+    printHeader();
+}
+
+/*
 * 画像サイズを縮小する
 */
 void BitMapProcessor::resizeData(string filename) {
     //ヘッダ情報の更新
     iHeader->biWidth /= 2;
     iHeader->biHeight /= 2;
-    iHeader->biSizeImage = (((iHeader->biBitCount * iHeader->biWidth) + iHeader->biWidth % 4) * iHeader->biHeight) / 8;
-    //biXPelsPerMeter = ;
-    //biYPelsPerMeter = ;
+    updateHeader();
 
     int width = iHeader->biWidth;
     int height = iHeader->biHeight;
-    int offset = fHeader->bfOffBits;    //オフセット
+    int offset = fHeader->bfOffBits; //オフセット
     int padding = width % 4;
     int lineByte = width * iHeader->biBitCount / 8; //パディングを除いた1列あたりのバイト数
     int p_lineByte = lineByte + padding; //パディングを含んだ1列当たりのバイト数
@@ -254,12 +286,12 @@ void BitMapProcessor::resizeData(string filename) {
     //画像幅1列ずつデータ書き込み
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            int n = width * y * 2 + x * 2;
-            memcpy(
-                line + x,
-                rgb24 + n,
-                sizeof(RGB_24)
-            );
+            int n = x * sizeof(RGB_24);
+            y *= 2;
+            x *= 2;
+            line[n] = imageBuffer[y][x].rgbBlue;
+            line[n + 1] = imageBuffer[y][x].rgbGreen;
+            line[n + 2] = imageBuffer[y][x].rgbRed;
         }
         fwrite(line, sizeof(uint8_t), p_lineByte, o_fp);
     }
@@ -279,29 +311,9 @@ void BitMapProcessor::changeData() {
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            int n = width * y + x;
-            uint8_t tmp = rgb24[n].rgbBlue;
-            rgb24[n].rgbBlue = rgb24[n].rgbRed;
-            rgb24[n].rgbRed = tmp;
+            uint8_t tmp = imageBuffer[y][x].rgbBlue;
+            imageBuffer[y][x].rgbBlue = imageBuffer[y][x].rgbRed;
+            imageBuffer[y][x].rgbRed = tmp;
         }
     }
-}
-
-int main()
-{
-    BitMapProcessor bmp;
-
-    //ファイルの読み込み
-    bmp.readData("image/rgb24.bmp");
-
-    //半分にリサイズ
-    //bmp.resizeData("output/resizeImage.bmp");
-
-    //RGBを入れ替える
-    //bmp.changeData();
-
-    //ファイルの書き出し
-    bmp.writeData("output/outputImage.bmp");
-
-    return 0;
 }
