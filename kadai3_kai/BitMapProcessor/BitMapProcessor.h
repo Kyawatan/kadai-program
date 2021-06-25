@@ -42,6 +42,16 @@ typedef struct BITMAPINFOHEADER {
 /*
 * RGB構造体
 */
+typedef struct RGBQUAD {
+    uint8_t rgbBlue;
+    uint8_t rgbGreen;
+    uint8_t rgbRed;
+    uint8_t rgbReserved;   //予約領域、必ず0
+} RGBQUAD;
+
+/*
+* 24ビットマップ用RGB構造体
+*/
 typedef struct RGB_24 {
     uint8_t rgbBlue;
     uint8_t rgbGreen;
@@ -54,11 +64,11 @@ typedef struct RGB_24 {
 class BitMapProcessor {
 private:
     uint8_t* buffer;
-    uint8_t headerBuffer[DEFAULT_HEADER_SIZE];  //ヘッダ部格納用
-    RGB_24** imageBuffer;  //RGB格納用
+    uint8_t headerBuffer[DEFAULT_HEADER_SIZE]; //ヘッダ部格納用
+    RGBQUAD* rgbBuffer; //RGB格納用  
+    RGB_24** rgb24Buffer; //24ビットマップRGB格納用
     BITMAPFILEHEADER* fHeader;
     BITMAPINFOHEADER* iHeader;
-    RGB_24* rgb24;
 
 public:
     BitMapProcessor();
@@ -66,13 +76,12 @@ public:
     void readData(string);
     void writeData(string);
     void resizeData(string);
-    void changeData();
+    void changeData(string);
 
 private:
     void readFileHeader();
     void readInfoHeader();
     void readBmpData();
-    void writePadding(uint8_t*, int, int);
     void printHeader();
     void updateHeader();
 };

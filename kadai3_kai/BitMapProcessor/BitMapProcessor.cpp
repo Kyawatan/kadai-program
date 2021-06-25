@@ -20,10 +20,10 @@ BitMapProcessor::BitMapProcessor() {
 
     //memset(headerBuffer, sizeof(uint8_t) * DEFAULT_HEADER_SIZE);
     buffer = NULL;
-    imageBuffer = NULL;
+    rgbBuffer = NULL;
+    rgb24Buffer = NULL;
     fHeader = (BITMAPFILEHEADER*)headerBuffer ;
     iHeader = (BITMAPINFOHEADER*)(headerBuffer + FILE_HEADER_SIZE);
-    rgb24 = NULL;
 };
 
 /*
@@ -32,9 +32,9 @@ BitMapProcessor::BitMapProcessor() {
 BitMapProcessor::~BitMapProcessor() {
     free(buffer);
     for (int i = 0; i < iHeader->biHeight; i++) {
-        delete imageBuffer[i];
+        delete rgb24Buffer[i];
     }
-    delete[]imageBuffer;
+    delete[]rgb24Buffer;
 }
 
 /*
@@ -113,24 +113,46 @@ void BitMapProcessor::readInfoHeader() {
 * 画像データを読む
 */
 void BitMapProcessor::readBmpData() {
+    int colorPallete;
     int height = iHeader->biHeight;
     int width = iHeader->biWidth;
-    int padding = width % 4;
+    int padding;
 
-    //RGBを格納する二次元配列の動的確保
-    imageBuffer = new RGB_24*[height];
-    for (int i = 0; i < height; i++) {
-        imageBuffer[i] = new RGB_24[width];
-    }
-    
-    //1ピクセルずつデータを読む
-    int n = DEFAULT_HEADER_SIZE;
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            memcpy(&imageBuffer[y][x], buffer + n, sizeof(RGB_24));
-            n += sizeof(RGB_24);
+    switch (iHeader->biBitCount) {
+    case 1:
+    case 4:
+    case 8:
+        //カラーパレット数分メモリ確保
+        colorPallete = 2 ^ iHeader->biBitCount;
+        rgbBuffer = new RGBQUAD[colorPallete];
+
+        //カラーパレットのRGBを読む
+        for (int i = 0; i < colorPallete; i++) {
+            int n = DEFAULT_HEADER_SIZE;
+            memcpy(&rgbBuffer[i], buffer + n, sizeof(RGBQUAD));
+            n += sizeof(RGBQUAD);
         }
-        n += padding; //パディングを読み飛ばす
+        break;
+
+    case 24:
+        padding = width % 4;
+
+        //RGBを格納する二次元配列の動的確保
+        rgb24Buffer = new RGB_24 * [height];
+        for (int i = 0; i < height; i++) {
+            rgb24Buffer[i] = new RGB_24[width];
+        }
+
+        //1ピクセルずつデータを読む
+        int n = DEFAULT_HEADER_SIZE;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                memcpy(&rgb24Buffer[y][x], buffer + n, sizeof(RGB_24));
+                n += sizeof(RGB_24);
+            }
+            n += padding; //パディングを読み飛ばす
+        }
+        break;
     }
 }
 
@@ -142,8 +164,7 @@ void BitMapProcessor::writeData(string filename) {
     int height = iHeader->biHeight;
     int offset = fHeader->bfOffBits;    //オフセット
     int padding = width % 4;
-    int lineByte = width * iHeader->biBitCount / 8; //パディングを除いた1列あたりのバイト数
-    int p_lineByte = lineByte + padding; //パディングを含んだ1列当たりのバイト数
+    int lineByte = width * iHeader->biBitCount / 8 + padding; //パディングを含めた1列あたりのバイト数
 
     //ファイルオープン
     FILE* o_fp = fopen(filename.c_str(), "wb");
@@ -153,43 +174,29 @@ void BitMapProcessor::writeData(string filename) {
     }
 
     //オフセット書き込み
-    fwrite(buffer, sizeof(*buffer), offset, o_fp);
-
-    //画像データの書き込み
-    //fwrite(buffer + offset, sizeof(*buffer), size, o_fp);
+    fwrite(headerBuffer, sizeof(uint8_t), offset, o_fp);
 
     //画像幅1列分のサイズの配列を動的確保
-    uint8_t* line = new uint8_t[p_lineByte];
-
-    //配列の末尾をあらかじめパディングしておく
-    writePadding(line, lineByte, padding);
+    uint8_t* line = new uint8_t[lineByte];
+    for (int i = 0; i < lineByte; i++) {
+        line[i] = 0;
+    }
 
     //画像幅1列ずつデータ書き込み
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int n = x * sizeof(RGB_24);
-            line[n] = imageBuffer[y][x].rgbBlue;
-            line[n + 1] = imageBuffer[y][x].rgbGreen;
-            line[n + 2] = imageBuffer[y][x].rgbRed;
+            line[n] = rgb24Buffer[y][x].rgbBlue;
+            line[n + 1] = rgb24Buffer[y][x].rgbGreen;
+            line[n + 2] = rgb24Buffer[y][x].rgbRed;
         }
-        fwrite(line, sizeof(uint8_t), p_lineByte, o_fp);
+        fwrite(line, sizeof(uint8_t), lineByte, o_fp);
     }
 
     delete[]line;
 
     //ファイルクローズ
     fclose(o_fp);
-}
-
-/*
-* パディング処理
-*/
-void BitMapProcessor::writePadding(uint8_t* array, int n, int p) {
-    if (p == 0) return;
-
-    for (int i = 0; i < p; i++) {
-        array[n] = 0;
-    }
 }
 
 /*
@@ -245,7 +252,7 @@ void BitMapProcessor::updateHeader() {
     fHeader->bfReserved1 = 0;
     fHeader->bfReserved2 = 0;
     fHeader->bfOffBits = DEFAULT_HEADER_SIZE;
-    fHeader->bfSize = iHeader->biSize + fHeader->bfOffBits;
+    fHeader->bfSize = iHeader->biSizeImage + fHeader->bfOffBits;
 
     cout << "ヘッダ情報を更新しました。" << endl;
     printHeader();
@@ -255,17 +262,18 @@ void BitMapProcessor::updateHeader() {
 * 画像サイズを縮小する
 */
 void BitMapProcessor::resizeData(string filename) {
-    //ヘッダ情報の更新
+    //幅・高さを1/2にする
     iHeader->biWidth /= 2;
     iHeader->biHeight /= 2;
+
+    //ヘッダ情報を更新
     updateHeader();
 
+    int offset = fHeader->bfOffBits; //オフセット
     int width = iHeader->biWidth;
     int height = iHeader->biHeight;
-    int offset = fHeader->bfOffBits; //オフセット
     int padding = width % 4;
-    int lineByte = width * iHeader->biBitCount / 8; //パディングを除いた1列あたりのバイト数
-    int p_lineByte = lineByte + padding; //パディングを含んだ1列当たりのバイト数
+    int lineByte = width * iHeader->biBitCount / 8 + padding; //パディングを含めた1列あたりのバイト数
 
     //ファイルオープン
     FILE* o_fp = fopen(filename.c_str(), "wb");
@@ -275,28 +283,23 @@ void BitMapProcessor::resizeData(string filename) {
     }
 
     //オフセット書き込み
-    fwrite(buffer, sizeof(*buffer), offset, o_fp);
+    fwrite(headerBuffer, sizeof(uint8_t), offset, o_fp);
 
-    //画像幅1列分のサイズの配列を動的確保
-    uint8_t* line = new uint8_t[p_lineByte];
-
-    //あらかじめパディングしておく
-    writePadding(line, lineByte, padding);
+    //パディング分の配列を動的確保
+    uint8_t* zeroPadding = new uint8_t[padding];
+    for (int i = 0; i < padding; i++) {
+        zeroPadding[i] = 0;
+    }
 
     //画像幅1列ずつデータ書き込み
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            int n = x * sizeof(RGB_24);
-            y *= 2;
-            x *= 2;
-            line[n] = imageBuffer[y][x].rgbBlue;
-            line[n + 1] = imageBuffer[y][x].rgbGreen;
-            line[n + 2] = imageBuffer[y][x].rgbRed;
+            fwrite(&rgb24Buffer[y*2][x*2], sizeof(RGB_24), 1, o_fp);
         }
-        fwrite(line, sizeof(uint8_t), p_lineByte, o_fp);
+        fwrite(&zeroPadding, sizeof(uint8_t), padding, o_fp);
     }
 
-    delete[]line;
+    delete[]zeroPadding;
 
     //ファイルクローズ
     fclose(o_fp);
@@ -305,15 +308,18 @@ void BitMapProcessor::resizeData(string filename) {
 /*
 * RGBを入れ替える
 */
-void BitMapProcessor::changeData() {
+void BitMapProcessor::changeData(string filename) {
     int width = iHeader->biWidth;
     int height = iHeader->biHeight;
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            uint8_t tmp = imageBuffer[y][x].rgbBlue;
-            imageBuffer[y][x].rgbBlue = imageBuffer[y][x].rgbRed;
-            imageBuffer[y][x].rgbRed = tmp;
+            uint8_t tmp = rgb24Buffer[y][x].rgbBlue;
+            rgb24Buffer[y][x].rgbBlue = rgb24Buffer[y][x].rgbRed;
+            rgb24Buffer[y][x].rgbRed = tmp;
         }
     }
+
+    //画像を出力
+    writeData(filename);
 }
