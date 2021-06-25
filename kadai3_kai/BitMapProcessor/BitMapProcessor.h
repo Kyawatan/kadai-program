@@ -64,11 +64,13 @@ typedef struct RGB_24 {
 class BitMapProcessor {
 private:
     uint8_t* buffer;
-    uint8_t headerBuffer[DEFAULT_HEADER_SIZE]; //ƒwƒbƒ_•”Ši”[—p
-    RGBQUAD* rgbBuffer; //RGBŠi”[—p  
+    uint8_t headerBuffer[DEFAULT_HEADER_SIZE]; //ƒwƒbƒ_•”Ši”[—p 
     RGB_24** rgb24Buffer; //24ƒrƒbƒgƒ}ƒbƒvRGBŠi”[—p
     BITMAPFILEHEADER* fHeader;
     BITMAPINFOHEADER* iHeader;
+    int height;
+    int width;
+    int padding;
 
 public:
     BitMapProcessor();
@@ -84,4 +86,5 @@ private:
     void readBmpData();
     void printHeader();
     void updateHeader();
+    void resetData();
 };
