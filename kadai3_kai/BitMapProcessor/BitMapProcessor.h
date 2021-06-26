@@ -79,6 +79,7 @@ public:
     void writeData(string);
     void resizeData(string);
     void changeData(string);
+    void nearestNeighborData(string, int);
 
 private:
     void readFileHeader();

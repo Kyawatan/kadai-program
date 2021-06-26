@@ -293,3 +293,62 @@ void BitMapProcessor::changeData(string filename) {
     //変更した画像データをリセット
     resetData();
 }
+
+/*
+* 任意の縮小率で画像サイズを縮小する（最近傍）
+*/
+void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
+     if (reductionRate <= 0 || 100 <= reductionRate) {
+        cout << "無効な数字です。" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    const double rouding = 0.5; //四捨五入
+    double rate = reductionRate / 100.0; //縮小率を小数点表示にする
+    int zeroPadding = 0;
+
+    //縮小前の高さと幅を保持しておく
+    int exHeight = iHeader->biHeight;
+    int exWidth = iHeader->biWidth;
+    
+    //縮小後の高さと幅を算出
+    height = (int)(iHeader->biHeight * rate + rouding);
+    width = (int)(iHeader->biWidth * rate + rouding);
+    padding = width % ALIGNMENT; //縮小後のパディング値
+
+    //元画像を縮小後の画像の幅・高さの倍で分割し、各格子の中央を指すようにする
+    double a = exHeight / (height * 2);
+    double b = exWidth / (width * 2);
+
+    //ヘッダ情報を更新
+    updateHeader();
+
+    //printHeader();
+
+//ファイルオープン
+    FILE* o_fp = fopen(filename.c_str(), "wb");
+    if (o_fp == NULL) {
+        cout << "ファイルオープンに失敗しました。" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    //ヘッダ書き込み
+    fwrite(headerBuffer, sizeof(uint8_t), DEFAULT_HEADER_SIZE, o_fp);
+
+    //1ピクセルずつデータ書き込み
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int a2 = (int)(a * ((long long)y * 2 + 1) + rouding);
+            int b2 = (int)(b * ((long long)x * 2 + 1) + rouding);
+            fwrite(&rgb24Buffer[a2][b2], sizeof(RGB_24), 1, o_fp);
+        }
+        fwrite(&zeroPadding, sizeof(uint8_t), padding, o_fp); //パディング
+    }
+
+    //ファイルクローズ
+    fclose(o_fp);
+
+    //変更した画像データをリセット
+    resetData();
+
+}
