@@ -195,6 +195,10 @@ void BitMapProcessor::resetData() {
         headerBuffer[i] = *(buffer + i);
     }
 
+    height = iHeader->biHeight;
+    width = iHeader->biWidth;
+    padding = iHeader->biWidth % ALIGNMENT;
+
     //RGBデータを上書き
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -308,17 +312,13 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
     int zeroPadding = 0;
 
     //縮小前の高さと幅を保持しておく
-    int exHeight = iHeader->biHeight;
-    int exWidth = iHeader->biWidth;
+    int exHeight = height;
+    int exWidth = width;
     
     //縮小後の高さと幅を算出
-    height = (int)(iHeader->biHeight * rate + rouding);
-    width = (int)(iHeader->biWidth * rate + rouding);
+    height = (int)(height * rate + rouding);
+    width = (int)(width * rate + rouding);
     padding = width % ALIGNMENT; //縮小後のパディング値
-
-    //元画像を縮小後の画像の幅・高さの倍で分割し、各格子の中央を指すようにする
-    double a = exHeight / (height * 2);
-    double b = exWidth / (width * 2);
 
     //ヘッダ情報を更新
     updateHeader();
@@ -335,12 +335,19 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
     //ヘッダ書き込み
     fwrite(headerBuffer, sizeof(uint8_t), DEFAULT_HEADER_SIZE, o_fp);
 
+    //元画像を縮小後の画像の幅・高さの倍で分割する
+    double splitX = exHeight / (height * 2);
+    double splitY = exWidth / (width * 2);
+
+    //元画像のピクセルを表す変数
+    int exY, exX;
+
     //1ピクセルずつデータ書き込み
     for (int y = 0; y < height; y++) {
+        exY = (int)(splitY * ((long long)y * 2 + 1));
         for (int x = 0; x < width; x++) {
-            int a2 = (int)(a * ((long long)y * 2 + 1) + rouding);
-            int b2 = (int)(b * ((long long)x * 2 + 1) + rouding);
-            fwrite(&rgb24Buffer[a2][b2], sizeof(RGB_24), 1, o_fp);
+            exX = (int)(splitY * ((long long)x * 2 + 1));
+            fwrite(&rgb24Buffer[exY][exX], sizeof(RGB_24), 1, o_fp);
         }
         fwrite(&zeroPadding, sizeof(uint8_t), padding, o_fp); //パディング
     }
