@@ -18,7 +18,7 @@ using namespace std;
 */
 BitMapProcessor::BitMapProcessor() {
 
-    //memset(headerBuffer, sizeof(uint8_t) * DEFAULT_HEADER_SIZE);
+    memset(headerBuffer, 0, sizeof(uint8_t) * DEFAULT_HEADER_SIZE);
     buffer = NULL;
     rgb24Buffer = NULL;
     fHeader = (BITMAPFILEHEADER*)headerBuffer ;
@@ -314,6 +314,7 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
     //縮小前の高さと幅を保持しておく
     int exHeight = height;
     int exWidth = width;
+    int exY, exX; //縮小前のピクセル値を表す変数
     
     //縮小後の高さと幅を算出
     height = (int)(height * rate + rouding);
@@ -325,7 +326,7 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
 
     //printHeader();
 
-//ファイルオープン
+    //ファイルオープン
     FILE* o_fp = fopen(filename.c_str(), "wb");
     if (o_fp == NULL) {
         cout << "ファイルオープンに失敗しました。" << endl;
@@ -335,18 +336,11 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
     //ヘッダ書き込み
     fwrite(headerBuffer, sizeof(uint8_t), DEFAULT_HEADER_SIZE, o_fp);
 
-    //元画像を縮小後の画像の幅・高さの倍で分割する
-    double splitX = exHeight / (height * 2);
-    double splitY = exWidth / (width * 2);
-
-    //元画像のピクセルを表す変数
-    int exY, exX;
-
     //1ピクセルずつデータ書き込み
     for (int y = 0; y < height; y++) {
-        exY = (int)(splitY * ((long long)y * 2 + 1));
+        exY = (int)(y / rate + rouding);
         for (int x = 0; x < width; x++) {
-            exX = (int)(splitY * ((long long)x * 2 + 1));
+            exX = (int)(x / rate + rouding);
             fwrite(&rgb24Buffer[exY][exX], sizeof(RGB_24), 1, o_fp);
         }
         fwrite(&zeroPadding, sizeof(uint8_t), padding, o_fp); //パディング
@@ -357,5 +351,4 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
 
     //変更した画像データをリセット
     resetData();
-
 }
