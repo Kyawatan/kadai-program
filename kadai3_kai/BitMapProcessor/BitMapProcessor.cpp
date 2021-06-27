@@ -321,6 +321,11 @@ void BitMapProcessor::nearestNeighborData(string filename, int reductionRate) {
     width = (int)(width * rate + rouding);
     padding = width % ALIGNMENT; //縮小後のパディング値
 
+    if (height == 0 || width == 0) {
+        cout << "縮小後の画像サイズが小さすぎます。" << endl;
+        exit(EXIT_FAILURE);
+    }
+
     //ヘッダ情報を更新
     updateHeader();
 
